@@ -7,9 +7,11 @@
         <meta name="keywords" content="HTML5, CSS3, JavaScript">
         <meta name="author" content="Kacper Wasiulewski">
         <meta charset="UTF-8">
+        <script src="../scripts/kolorujtlo.js" type="text/javascript"></script>
+        <script src="../scripts/timedate.js" type="text/javascript"></script>
         <title>Największe budynki świata</title>
     </head>
-    <body>
+    <body onload="startclock()">
         <header>
             <h1>Największe budynki świata</h1>
             <p>Poznaj architektoniczne rekordy globu</p>
@@ -23,6 +25,19 @@
             <li><a href="../nyc/nbnyc.html">Nowy Jork</a></li>
             </ul>
         </nav>
+        <FORM METHOD="POST" NAME="background" style="text-align:center">
+            <INPUT TYPE="button" VALUE="żółty" ONCLICK="changeBackground('#FFF000')">
+            <INPUT TYPE="button" VALUE="czarny" ONCLICK="changeBackground('#000000')">
+            <INPUT TYPE="button" VALUE="biały" ONCLICK="changeBackground('#FFFFFF')">
+            <INPUT TYPE="button" VALUE="zielony" ONCLICK="changeBackground('#00FF00')">
+            <INPUT TYPE="button" VALUE="niebieski" ONCLICK="changeBackground('#0000FF')">
+            <INPUT TYPE="button" VALUE="pomarańczowy" ONCLICK="changeBackground('#FF8000')">
+            <INPUT TYPE="button" VALUE="szary" ONCLICK="changeBackground('#c0c0c0')">                <INPUT TYPE="button" VALUE="czerwony" ONCLICK="changeBackground('#FF0000')">
+        </FORM>
+        <div style="text-align:right">
+            <div id="zegarek"></div>
+            <div id="data"></div>
+        </div>
         <main>
             <section>
                 <h2>O stronie</h2>

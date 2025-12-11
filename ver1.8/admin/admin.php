@@ -2,25 +2,6 @@
 session_start(); // Rozpoczęcie sesji
 include '../cfg.php'; // Wczytanie pliku cfg
 
-function FormularzLogowania() {
-    // Wyświetlenie formularza logowania do panelu CMS
-    $wynik = '
-        <div class="logowanie">
-            <h1 class="heading">Panel CMS: </h1>
-            <div class="logowanie">
-                <form method="post" name="LoginForm" enctype="multipart/form-data" action="'.htmlspecialchars($_SERVER['REQUEST_URI']).'">
-                    <table class="logowanie">
-                        <tr><td class="log4_t">[email]</td><td><input type="text" name="login_email" class="logowanie" /></td></tr>
-                        <tr><td class="log4_t">[hasło]</td><td><input type="password" name="login_pass" class="logowanie" /></td></tr>
-                        <tr><td>&nbsp;</td><td><input type="submit" name="xl_submit" class="logowanie" value="zaloguj" /></td></tr>
-                    </table>
-                </form>
-            </div>
-        </div>
-    ';
-    return $wynik;
-}
-
 $error_message = ''; // Inicjacja zmiennej przechowującej błąd
 
 if (!isset($_SESSION['logged_in'])) // Jeżeli nie jest się zalogowanym
@@ -42,11 +23,19 @@ if (!isset($_SESSION['logged_in'])) // Jeżeli nie jest się zalogowanym
     }
 }
 
+
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true)  // Jeżeli jest się zalogowanym
 {
+    $catManager = new CategoryManager(); // Inicjalizacja klasy zarządzenia kategoriami
+
     $action = isset($_GET['action']) ? $_GET['action'] : '';
     $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
     $content = '';
+
+    // Wyświetlanie wyboru ekranu - zadządzania podstronami lub kategoriami
+    echo '<a href="admin.php">Zarządzaj Podstronami</a> | ';
+    echo '<a href="admin.php?action=kategorie_list">Zarządzaj Kategoriami (Sklep)</a>';
+
 
     if (isset($_POST['edit_submit'])) // Panel edycji podstrony
     {
@@ -84,22 +73,65 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true)  // Jeżel
             $content = '<p style="color: red;">Wystąpił błąd: ' . mysqli_error($link) . '</p>'; // Wyświetlenie komunikatu o błędzie
         }
     }
-    if ($action === 'edit' && $id > 0) // Wyświetlenie okna edycji podstrony, gdy ID jest większe od 0
+
+    if (isset($_POST['cat_add_submit'])) // Panel dodawania kategorii
     {
-        echo $content;
+        if($catManager->dodajKategorie($link, $_POST['matka'], $_POST['nazwa'])) {
+            $content = '<p style="color: green;">Dodano kategorię.</p>';
+        } else {
+            $content = '<p style="color: red;">Wystąpił błąd podczas dodawania.</p>';
+        }
+        $action = 'kategorie_list';
+    }
+    if (isset($_POST['cat_edit_submit'])) // Panel edycji kategorii
+    {
+        if($catManager->edytujKategorie($link, $_POST['id_edycji'], $_POST['matka'], $_POST['nazwa'])) {
+            $content = '<p style="color: green;">Kategoria została zaktualizowana.</p>';
+        } else {
+            $content = '<p style="color: red;">Wystąpił błąd podczas edycji.</p>';
+        }
+        $action = 'kategorie_list';
+    }
+
+    // Wyświetlenie komunikatów
+    echo $content;
+    
+    // Wyświetlanie kategorii
+    if ($action === 'kategorie_list') {
+        echo '<h3 class="heading">Drzewo Kategorii</h3>';
+        $catManager->pokazKategorie($link);
+    }
+    // Dodawanie kategorii
+    elseif ($action === 'kategorie_add') {
+        echo $catManager->formularzDodawania();
+    }
+    // Edycja kategorii
+    elseif ($action === 'kategorie_edit' && $id > 0) {
+        echo $catManager->formularzEdycji($link, $id);
+    }
+    // Usunięcie kategorii
+    elseif ($action === 'kategorie_delete' && $id > 0) {
+        $catManager->usunKategorie($link, $id);
+        echo '<p style="color:green">Kategoria została usunięta.</p>';
+        $catManager->pokazKategorie($link);
+    }
+    
+    // Wyświetlenie okna edycji podstrony, gdy ID jest większe od 0
+    elseif ($action === 'edit' && $id > 0) {
         echo EdytujPodstrone($link, $id);
-     
-    }elseif ($action === 'add') {
-        // Wyświetlnie okna dodawania nowej podstrony
+    }
+    // Wyświetlnie okna dodawania nowej podstrony
+    elseif ($action === 'add') {
         echo DodajNowaPodstrone();
-    }elseif ($action === 'delete' && $id > 0) {
-        // Usuwanie podstrony
+    }
+    // Usuwanie podstrony
+    elseif ($action === 'delete' && $id > 0) {
         echo UsunPodstrone($link, $id); 
         ListaPodstron($link);
-    }else {
-        // Wyświetlenie strony głównej panelu CMS
-        echo 'Witaj w Panelu CMS!';
-        echo $content;
+    }
+    // Domyślny widok
+    else {
+        echo '<h3 class="heading">Lista Podstron</h3>';
         ListaPodstron($link);
     }
     
@@ -109,6 +141,114 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true)  // Jeżel
     echo FormularzLogowania();
 }
 
+// Klasa zarządzania kategoriami
+class CategoryManager {
+    
+    // Wyświetlanie kategorii
+    function pokazKategorie($link) {
+        echo '<p><a href="admin.php?action=kategorie_add" style="padding: 10px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;"> Dodaj Kategorię </a></p>';
+        
+        $queryMain = "SELECT * FROM kategorie WHERE matka = 0 ORDER BY id ASC";
+        $resultMain = mysqli_query($link, $queryMain);
+
+        echo "<ul>";
+        while ($rowMain = mysqli_fetch_array($resultMain)) {
+            echo "<li><b>" . htmlspecialchars($rowMain['nazwa']) . "</b> (ID: " . $rowMain['id'] . ")";
+            echo ' <a href="admin.php?action=kategorie_edit&id='.$rowMain['id'].'">[Edytuj]</a> ';
+            echo ' <a href="admin.php?action=kategorie_delete&id='.$rowMain['id'].'" onclick="return confirm(\'Usunąć kategorię?\')">[Usuń]</a>';
+
+            $matkaId = $rowMain['id'];
+            $querySub = "SELECT * FROM kategorie WHERE matka = '$matkaId' ORDER BY id ASC";
+            $resultSub = mysqli_query($link, $querySub);
+
+            if (mysqli_num_rows($resultSub) > 0) {
+                echo "<ul>";
+                while ($rowSub = mysqli_fetch_array($resultSub)) {
+                    echo "<li>" . htmlspecialchars($rowSub['nazwa']) . " (ID: " . $rowSub['id'] . ")";
+                    echo ' <a href="admin.php?action=kategorie_edit&id='.$rowSub['id'].'">[E]</a> ';
+                    echo ' <a href="admin.php?action=kategorie_delete&id='.$rowSub['id'].'" onclick="return confirm(\'Usunąć podkategorię?\')">[X]</a>';
+                    echo "</li>";
+                }
+                echo "</ul>";
+            }
+            echo "</li>";
+        }
+        echo "</ul>";
+    }
+
+    // Dodawanie kategorii
+    function formularzDodawania() {
+        return '
+        <h2 class="heading">Dodaj Kategorię</h2>
+        <form method="post" action="admin.php?action=kategorie_list">
+            Nazwa: <input type="text" name="nazwa" required> <br><br>
+            Matka (ID rodzica, 0 = kategoria główna): <input type="number" name="matka" value="0"> <br><br>
+            <input type="submit" name="cat_add_submit" value="Dodaj Kategorię">
+        </form>';
+    }
+
+    // Edycja kategorii
+    function formularzEdycji($link, $id) {
+        $id = (int)$id;
+        $query = "SELECT * FROM kategorie WHERE id = '$id' LIMIT 1";
+        $result = mysqli_query($link, $query);
+        $row = mysqli_fetch_array($result);
+        
+        if(!$row) return "Nie znaleziono kategorii.";
+
+        return '
+        <h2 class="heading">Edytuj Kategorię</h2>
+        <form method="post" action="admin.php?action=kategorie_list">
+            <input type="hidden" name="id_edycji" value="'.$id.'">
+            Nazwa: <input type="text" name="nazwa" value="'.htmlspecialchars($row['nazwa']).'" required> <br><br>
+            Matka: <input type="number" name="matka" value="'.$row['matka'].'"> <br><br>
+            <input type="submit" name="cat_edit_submit" value="Zapisz Zmiany">
+        </form>';
+    }
+
+    // Funkcja dodawania kategorii
+    function dodajKategorie($link, $matka, $nazwa) {
+        $matka = (int)$matka;
+        $nazwa = mysqli_real_escape_string($link, $nazwa);
+        $query = "INSERT INTO kategorie (matka, nazwa) VALUES ('$matka', '$nazwa')";
+        return mysqli_query($link, $query);
+    }
+
+    // Funkcja edycji kategorii
+    function edytujKategorie($link, $id, $matka, $nazwa) {
+        $id = (int)$id;
+        $matka = (int)$matka;
+        $nazwa = mysqli_real_escape_string($link, $nazwa);
+        $query = "UPDATE kategorie SET nazwa = '$nazwa', matka = '$matka' WHERE id = '$id' LIMIT 1";
+        return mysqli_query($link, $query);
+    }
+
+    // Funkcja usuwania kategorii
+    function usunKategorie($link, $id) {
+        $id = (int)$id;
+        $query = "DELETE FROM kategorie WHERE id = '$id' LIMIT 1";
+        return mysqli_query($link, $query);
+    }
+}
+
+// // Wyświetlenie formularza logowania do panelu CMS
+function FormularzLogowania() {
+    $wynik = '
+        <div class="logowanie">
+            <h1 class="heading">Panel CMS: </h1>
+            <div class="logowanie">
+                <form method="post" name="LoginForm" enctype="multipart/form-data" action="'.htmlspecialchars($_SERVER['REQUEST_URI']).'">
+                    <table class="logowanie">
+                        <tr><td class="log4_t">[email]</td><td><input type="text" name="login_email" class="logowanie" /></td></tr>
+                        <tr><td class="log4_t">[hasło]</td><td><input type="password" name="login_pass" class="logowanie" /></td></tr>
+                        <tr><td>&nbsp;</td><td><input type="submit" name="xl_submit" class="logowanie" value="zaloguj" /></td></tr>
+                    </table>
+                </form>
+            </div>
+        </div>
+    ';
+    return $wynik;
+}
 
 function ListaPodstron($link) {
     echo '<p><a href="admin.php?action=add" style="padding: 10px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;"> Dodaj </a></p>'; // Przycisk dodawania nowej podstrony
